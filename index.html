@@ -149,12 +149,12 @@
 <div class="settings" id="settingsPanel">
   <div class="settings-title">⚙️ 报警阈值（校准前可修改）</div>
   <div class="setting-row">
-    <span class="setting-label">🔴 加速/刹车阈值</span>
+    <span class="setting-label">🟢 加速/刹车阈值</span>
     <input type="number" class="setting-input" id="threshY" value="3.0" step="0.1" min="0.5" max="20">
     <span class="setting-unit">m/s²</span>
   </div>
   <div class="setting-row">
-    <span class="setting-label">🟡 转弯阈值</span>
+    <span class="setting-label">🔴 转弯阈值</span>
     <input type="number" class="setting-input" id="threshX" value="2.5" step="0.1" min="0.5" max="20">
     <span class="setting-unit">m/s²</span>
   </div>
@@ -174,8 +174,8 @@
 <div class="alert-bar ok" id="alertBar">✅ 舒适</div>
 
 <div class="legend">
-  <span><div class="dot" style="background:#ff6b6b;"></div> 转弯加速度</span>
   <span><div class="dot" style="background:#51cf66;"></div> 加速/刹车加速度</span>
+  <span><div class="dot" style="background:#ff6b6b;"></div> 转弯加速度</span>
 </div>
 
 <div class="chart-container">
@@ -184,20 +184,20 @@
 
 <div class="info-row">
   <div class="info-card">
-    <div class="info-label">当前转弯加速度 (m/s²)</div>
-    <div class="info-value red" id="valX">0.00</div>
-  </div>
-  <div class="info-card">
     <div class="info-label">当前加速/刹车加速度 (m/s²)</div>
     <div class="info-value green" id="valY">0.00</div>
   </div>
   <div class="info-card">
-    <div class="info-label">转弯峰值</div>
-    <div class="info-value sm" id="peakX">0.00</div>
+    <div class="info-label">当前转弯加速度 (m/s²)</div>
+    <div class="info-value red" id="valX">0.00</div>
   </div>
   <div class="info-card">
     <div class="info-label">加速/刹车峰值</div>
     <div class="info-value sm" id="peakY">0.00</div>
+  </div>
+  <div class="info-card">
+    <div class="info-label">转弯峰值</div>
+    <div class="info-value sm" id="peakX">0.00</div>
   </div>
 </div>
 
