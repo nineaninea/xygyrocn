@@ -364,6 +364,24 @@ function startScoreUpdates() {
 }
 function stopScoreUpdates() { if (scoreTimer) { clearInterval(scoreTimer); scoreTimer = null; } }
 
+// ============ WAKE LOCK ============
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    }
+  } catch (e) { console.log('Wake lock failed:', e); }
+}
+function releaseWakeLock() {
+  if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
+// Re-acquire wake lock when page becomes visible again
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && running) requestWakeLock();
+});
+
 // ============ STATE ============
 let permissionGranted = false;
 let calibrated = false;
@@ -453,11 +471,13 @@ function startSampling() {
     drawChart();
   }, SAMPLE_INTERVAL);
   startAlertLoop(); startScoreUpdates();
+  requestWakeLock();
 }
 
 function stopSampling() {
   if (sampleTimer) { clearInterval(sampleTimer); sampleTimer = null; }
   stopAlertLoop(); stopScoreUpdates();
+  releaseWakeLock();
 }
 
 function drawChart() {
