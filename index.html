@@ -301,6 +301,20 @@ let sumSqNorm = 0;    // sum of (ax/thX)^2 + (ay/thY)^2
 let overCount = 0;     // samples over threshold
 let peakX = 0, peakY = 0;
 
+// Bonus 1: Steady driving — consecutive 20s under 90% threshold → +1 each
+let steadyStreak = 0;       // consecutive samples under 90%
+let steadyBonus = 0;        // total bonus points earned
+const STEADY_THRESHOLD = 0.9;  // 90% of threshold
+const STEADY_SECONDS = 20;
+
+// Bonus 2: Smooth operation — low jerk (acceleration change rate)
+let prevAx = 0, prevAy = 0;
+let sumJerkSq = 0;
+let jerkSamples = 0;
+
+// Bonus 3: Low intensity — overall RMS < 25% of threshold
+// (computed in calcScore from existing sumSqNorm)
+
 function addScoreSample(ax, ay) {
   totalSamples++;
   const nx = ax / THRESH_X, ny = ay / THRESH_Y;
@@ -309,10 +323,32 @@ function addScoreSample(ax, ay) {
   const absX = Math.abs(ax), absY = Math.abs(ay);
   if (absX > peakX) peakX = absX;
   if (absY > peakY) peakY = absY;
+
+  // Bonus 1: steady driving streak
+  if (absX < THRESH_X * STEADY_THRESHOLD && absY < THRESH_Y * STEADY_THRESHOLD) {
+    steadyStreak++;
+    // Sensor fires ~60Hz, 20 seconds = ~1200 samples
+    const samplesFor20s = Math.round(20 * 60);
+    if (steadyStreak >= samplesFor20s) {
+      steadyBonus++;
+      steadyStreak = 0; // reset streak, start counting next 20s
+    }
+  } else {
+    steadyStreak = 0;
+  }
+
+  // Bonus 2: jerk tracking
+  if (totalSamples > 1) {
+    const jx = ax - prevAx, jy = ay - prevAy;
+    sumJerkSq += jx * jx + jy * jy;
+    jerkSamples++;
+  }
+  prevAx = ax;
+  prevAy = ay;
 }
 
 function calcScore() {
-  if (totalSamples < 10) return { score: 100, grade: '🌟 非常舒适', rms: 0, overPct: 0, rmsPenalty: 0, overPenalty: 0, peakPenalty: 0 };
+  if (totalSamples < 10) return { score: 100, grade: '🌟 非常舒适', rms: 0, overPct: 0, rmsPenalty: 0, overPenalty: 0, peakPenalty: 0, steadyBonus: 0, jerkBonus: 0, lowIntensityBonus: 0 };
 
   const rms = Math.sqrt(sumSqNorm / totalSamples);
   const overPct = overCount / totalSamples;
@@ -325,7 +361,17 @@ function calcScore() {
   const peakOver = (maxOverX / THRESH_X + maxOverY / THRESH_Y) / 2;
   const peakPenalty = Math.min(30, peakOver * 15);
 
-  const score = Math.max(0, Math.min(100, Math.round(100 - rmsPenalty - overPenalty - peakPenalty)));
+  // Bonus 2: jerk — low jerk RMS means smooth operation
+  const jerkRms = jerkSamples > 0 ? Math.sqrt(sumJerkSq / jerkSamples) : 0;
+  // Normalize: jerkRms < 0.3 → full 5pts, > 1.5 → 0pts
+  const jerkBonus = Math.max(0, Math.min(5, (1.5 - jerkRms) / 1.2 * 5));
+
+  // Bonus 3: low intensity — rms < 0.25 → full 5pts
+  const lowIntensityBonus = rms < 0.25 ? 5 : rms < 0.5 ? Math.round((0.5 - rms) / 0.25 * 5) : 0;
+
+  const totalBonus = steadyBonus + jerkBonus + lowIntensityBonus;
+  const rawScore = 100 - rmsPenalty - overPenalty - peakPenalty + totalBonus;
+  const score = Math.max(0, Math.min(100, Math.round(rawScore)));
 
   let grade;
   if (score >= 90) grade = '🌟 非常舒适';
@@ -334,7 +380,7 @@ function calcScore() {
   else if (score >= 40) grade = '😬 较颠簸';
   else grade = '🤢 非常颠簸';
 
-  return { score, grade, rms, overPct, rmsPenalty, overPenalty, peakPenalty };
+  return { score, grade, rms, overPct, rmsPenalty, overPenalty, peakPenalty, steadyBonus, jerkBonus: Math.round(jerkBonus * 10) / 10, lowIntensityBonus };
 }
 
 function getScoreColor(score) {
@@ -356,7 +402,7 @@ function updateScoreDisplay() {
   document.getElementById('scoreGrade').style.color = c;
   const overStr = (r.overPct * 100).toFixed(1);
   document.getElementById('scoreBreakdown').textContent =
-    `RMS: ${r.rms.toFixed(2)} | 超标占比: ${overStr}% | 采样: ${totalSamples}`;
+    `RMS: ${r.rms.toFixed(2)} | 超标: ${overStr}% | 加分: +${(r.steadyBonus + r.jerkBonus + r.lowIntensityBonus).toFixed(1)}`;
 }
 function startScoreUpdates() {
   document.getElementById('scoreContainer').style.display = 'flex';
@@ -613,7 +659,11 @@ function showReport(result) {
     `<div>──────────</div>` +
     `<div>平滑度扣分：<span class="stat-val">-${result.rmsPenalty.toFixed(1)}</span></div>` +
     `<div>超标时间扣分：<span class="stat-val">-${result.overPenalty.toFixed(1)}</span></div>` +
-    `<div>峰值扣分：<span class="stat-val">-${result.peakPenalty.toFixed(1)}</span></div>`;
+    `<div>峰值扣分：<span class="stat-val">-${result.peakPenalty.toFixed(1)}</span></div>` +
+    `<div>──────────</div>` +
+    `<div>持续平稳加分：<span class="stat-val" style="color:#51cf66">+${result.steadyBonus}</span>（每20秒平稳+1）</div>` +
+    `<div>柔和操作加分：<span class="stat-val" style="color:#51cf66">+${result.jerkBonus}</span></div>` +
+    `<div>低强度驾驶加分：<span class="stat-val" style="color:#51cf66">+${result.lowIntensityBonus}</span></div>`;
 
   document.getElementById('reportOverlay').classList.remove('hidden');
 }
@@ -671,6 +721,7 @@ function finishCalibration() {
 
   accelHX = 0; accelHY = 0; peakX = 0; peakY = 0;
   totalSamples = 0; sumSqNorm = 0; overCount = 0;
+  steadyStreak = 0; steadyBonus = 0; sumJerkSq = 0; jerkSamples = 0; prevAx = 0; prevAy = 0;
   calibrated = true; running = true;
   sessionStartTime = performance.now();
 
@@ -687,6 +738,7 @@ function recalibrate() {
   stopSampling(); calibrated = false; running = false;
   accelHX = 0; accelHY = 0; peakX = 0; peakY = 0;
   totalSamples = 0; sumSqNorm = 0; overCount = 0;
+  steadyStreak = 0; steadyBonus = 0; sumJerkSq = 0; jerkSamples = 0; prevAx = 0; prevAy = 0;
   dataX = []; dataY = [];
   alertState = 'ok';
   document.getElementById('alertBar').className = 'alert-bar ok';
